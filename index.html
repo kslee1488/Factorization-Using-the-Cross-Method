@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cross-Method Factorization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- MathJax Configuration for LaTeX rendering -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['\\(', '\\)'], ['$', '$']]
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .highlight {
+            transition: all 0.3s ease;
+        }
+        .highlight.active {
+            background-color: #fef08a; /* Yellow highlight */
+            border-radius: 0.25rem;
+            padding: 0.125rem 0.25rem;
+            margin: -0.125rem -0.25rem;
+        }
+        .cross-line {
+            transition: stroke-dashoffset 0.8s ease-in-out, opacity 0.3s ease;
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+        }
+        .cross-line.draw {
+            stroke-dashoffset: 0;
+        }
+        .step-content {
+            display: none;
+            opacity: 0;
+        }
+        .step-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease-in forwards;
+        }
+        .math-lg mjx-container {
+            font-size: 1.15em;
+        }
+        .math-xl mjx-container {
+            font-size: 1.3em;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 relative">
+
+    <!-- Name Input Modal -->
+    <div id="name-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl transform transition-transform duration-300">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="p-2 bg-indigo-100 text-indigo-600 rounded-full">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Ready for the Quiz?</h2>
+            </div>
+            <p class="text-gray-600 mb-6">Enter your name to start tracking your score.</p>
+            
+            <input type="text" id="student-name-input" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring focus:ring-indigo-200 transition outline-none mb-2 text-lg" placeholder="Your Name" autocomplete="off">
+            <p id="name-error" class="text-red-500 text-sm h-5 opacity-0 transition-opacity">Please enter a valid name.</p>
+
+            <div class="flex justify-end gap-3 mt-4">
+                <button id="cancel-quiz-btn" class="px-5 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition font-medium">Cancel</button>
+                <button id="start-quiz-btn" class="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg shadow hover:bg-indigo-700 transition">Start Quiz</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div class="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col relative">
+        
+        <!-- ================= TUTORIAL VIEW ================= -->
+        <div id="tutorial-container" class="flex flex-col md:flex-row w-full">
+            <!-- Left Panel: Explanation & Controls -->
+            <div class="w-full md:w-1/2 p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col relative z-10">
+                
+                <div class="flex flex-wrap justify-between items-start mb-2 gap-2">
+                    <h1 class="text-2xl font-bold text-indigo-700">Cross-Method</h1>
+                    <div class="flex gap-2">
+                        <!-- Generate New Example Button -->
+                        <button id="new-btn" class="cursor-pointer text-xs px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-full hover:bg-indigo-100 transition-colors shadow-sm font-semibold flex items-center gap-1 active:scale-95">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            New Example
+                        </button>
+                        <!-- Enter Quiz Mode 1 Button -->
+                        <button id="enter-quiz-1-btn" class="cursor-pointer text-xs px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-full hover:bg-green-100 transition-colors shadow-sm font-semibold flex items-center gap-1 active:scale-95">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            Quiz Mode 1
+                        </button>
+                        <!-- Enter Quiz Mode 2 Button -->
+                        <button id="enter-quiz-2-btn" class="cursor-pointer text-xs px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full hover:bg-emerald-100 transition-colors shadow-sm font-semibold flex items-center gap-1 active:scale-95">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            Quiz Mode 2
+                        </button>
+                    </div>
+                </div>
+                
+                <p class="text-gray-600 mb-6 text-sm">Let's learn how to factorize a quadratic expression: <br><span class="inline-block mt-2 px-2 py-1 bg-gray-100 rounded">\(ax^2 + bx + c\)</span></p>
+
+                <div id="explanation-container" class="flex-grow min-h-[220px]">
+                    <!-- Step 0: Intro -->
+                    <div class="step-content active" id="step-0">
+                        <h2 class="font-semibold text-lg mb-2">Example: <span class="font-bold text-indigo-600" id="step0-eq"></span></h2>
+                        <p class="text-gray-700 mb-4">We want to find two binomials that multiply to give this expression.</p>
+                        <p class="text-gray-700">The general form is <span class="bg-gray-100 px-1 rounded">\((px + q)(rx + s)\)</span>.</p>
+                        <p class="text-gray-700 mt-2">Click 'Next' to see the cross-method in action.</p>
+                    </div>
+
+                    <!-- Step 1: 'a' term -->
+                    <div class="step-content" id="step-1">
+                        <h2 class="font-semibold text-lg mb-2">Step 1: Factors of \(a\)</h2>
+                        <p class="text-gray-700 mb-4">Look at the first term, <span class="highlight font-bold text-blue-600 inline-block" id="hl-a-term"></span>.</p>
+                        <p class="text-gray-700" id="step1-desc"></p>
+                        <p class="text-gray-700 mt-2" id="step1-placements"></p>
+                    </div>
+
+                    <!-- Step 2: 'c' term -->
+                    <div class="step-content" id="step-2">
+                        <h2 class="font-semibold text-lg mb-2">Step 2: Factors of \(c\)</h2>
+                        <p class="text-gray-700 mb-4">Now look at the constant term, <span class="highlight font-bold text-green-600 inline-block" id="hl-c-term"></span>.</p>
+                        <p class="text-gray-700" id="step2-desc"></p>
+                        <p class="text-gray-700 mt-2" id="step2-placements"></p>
+                    </div>
+
+                    <!-- Step 3: Cross Multiply -->
+                    <div class="step-content" id="step-3">
+                        <h2 class="font-semibold text-lg mb-2">Step 3: Cross Multiply</h2>
+                        <p class="text-gray-700 mb-4">Multiply diagonally from top to bottom to find the cross products.</p>
+                        <ul class="list-disc pl-5 text-gray-700 space-y-3 mt-2">
+                            <li id="step3-li1"></li>
+                            <li id="step3-li2"></li>
+                        </ul>
+                    </div>
+
+                    <!-- Step 4: Check 'b' term -->
+                    <div class="step-content" id="step-4">
+                        <h2 class="font-semibold text-lg mb-2">Step 4: Check middle term</h2>
+                        <p class="text-gray-700 mb-4">Add the cross products together.</p>
+                        <p class="text-gray-700 text-center text-lg bg-gray-100 py-3 rounded mb-4 shadow-inner animate-pulse" id="step4-calc"></p>
+                        <p class="text-gray-700">Does this match our middle term, <span class="highlight font-bold text-red-500 inline-block" id="hl-b-term"></span>?</p>
+                        <p class="text-green-600 font-bold mt-2 text-xl text-center">Yes!</p>
+                    </div>
+
+                    <!-- Step 5: Result -->
+                    <div class="step-content" id="step-5">
+                        <h2 class="font-semibold text-lg mb-2 text-indigo-700">Result</h2>
+                        <p class="text-gray-700 mb-4">Read the factors straight across (horizontally).</p>
+                        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-center">
+                            <p class="text-sm text-gray-500 mb-1">Top row:</p>
+                            <p class="font-bold text-lg mb-2" id="step5-row1"></p>
+                            <p class="text-sm text-gray-500 mb-1">Bottom row:</p>
+                            <p class="font-bold text-lg mb-4" id="step5-row2"></p>
+                            <p class="text-sm text-gray-500 mb-1">Final Factorized Form:</p>
+                            <p class="font-bold text-xl text-indigo-700 mt-2 math-lg" id="step5-final"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controls (Placed inside relative z-20 for guaranteed pointer interactions) -->
+                <div class="mt-8 flex justify-between items-center relative z-20">
+                    <button id="prev-btn" class="cursor-pointer px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium">Previous</button>
+                    <div id="step-indicator" class="text-sm font-medium text-gray-500 select-none">Step 0 / 5</div>
+                    <button id="next-btn" class="cursor-pointer px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors font-medium shadow-sm">Next</button>
+                    <button id="reset-btn" class="hidden cursor-pointer px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 transition-colors font-medium shadow-sm">Restart</button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Graphic Visualizer -->
+            <div class="w-full md:w-1/2 bg-gray-50 p-8 flex flex-col items-center pt-16 relative min-h-[500px]">
+                
+                <!-- Equation Display -->
+                <div class="text-2xl font-bold mb-10 tracking-wide math-xl flex gap-2 select-none">
+                    <span id="vis-a-term" class="transition-colors duration-300 text-gray-900"></span>  
+                    <span id="vis-b-term" class="transition-colors duration-300 text-gray-900"></span>  
+                    <span id="vis-c-term" class="transition-colors duration-300 text-gray-900"></span>
+                </div>
+
+                <!-- The Cross Diagram Container -->
+                <div class="relative w-64 h-48 border-2 border-dashed border-gray-300 rounded-xl bg-white shadow-inner flex flex-col items-center justify-center shrink-0">
+                    
+                    <!-- SVG for Cross Lines (Rendered with pointer-events-none so it never intercepts click) -->
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <!-- Top-Left to Bottom-Right -->
+                        <line id="line-1" x1="25" y1="25" x2="75" y2="75" stroke="#9CA3AF" stroke-width="2" class="cross-line opacity-0" />
+                        <!-- Top-Right to Bottom-Left -->
+                        <line id="line-2" x1="75" y1="25" x2="25" y2="75" stroke="#9CA3AF" stroke-width="2" class="cross-line opacity-0" />
+                    </svg>
+
+                    <!-- Grid for elements -->
+                    <div class="grid grid-cols-2 grid-rows-2 w-full h-full p-4 relative z-10 text-xl font-bold gap-x-12 gap-y-12 place-items-center select-none">
+                        
+                        <div class="col-start-1 row-start-1">
+                            <span id="factor-a1" class="opacity-0 transition-opacity duration-500 text-blue-600 block"></span>
+                        </div>
+                        
+                        <div class="col-start-2 row-start-1">
+                            <span id="factor-c1" class="opacity-0 transition-opacity duration-500 text-green-600 block"></span>
+                        </div>
+                        
+                        <div class="col-start-1 row-start-2">
+                            <span id="factor-a2" class="opacity-0 transition-opacity duration-500 text-blue-600 block"></span>
+                        </div>
+
+                        <div class="col-start-2 row-start-2">
+                            <span id="factor-c2" class="opacity-0 transition-opacity duration-500 text-green-600 block"></span>
+                        </div>
+
+                    </div>
+
+                    <!-- Final Grouping Highlights -->
+                    <div id="group-top" class="absolute top-2 left-2 right-2 h-16 border-2 border-indigo-400 rounded-lg opacity-0 transition-opacity duration-500 bg-indigo-50/30 pointer-events-none"></div>
+                    <div id="group-bottom" class="absolute bottom-2 left-2 right-2 h-16 border-2 border-indigo-400 rounded-lg opacity-0 transition-opacity duration-500 bg-indigo-50/30 pointer-events-none"></div>
+
+                </div>
+
+                <!-- Products and Sum Area -->
+                <div id="products-area" class="mt-6 flex flex-col items-center min-h-[120px] w-full max-w-[280px]">
+                    
+                    <div id="calc-1" class="opacity-0 transition-opacity duration-500 text-lg w-full flex justify-center py-1"></div>
+                    
+                    <div id="calc-2" class="opacity-0 transition-opacity duration-500 text-lg w-full flex justify-center py-1"></div>
+                    
+                    <div id="calc-sum-line" class="h-0.5 bg-gray-300 w-3/4 my-3 opacity-0 transition-opacity duration-500 rounded"></div>
+                    
+                    <div id="calc-sum-container" class="opacity-0 transition-opacity duration-500 text-xl flex items-center justify-center w-full relative">
+                        <span id="calc-sum-formula"></span>
+                        <span id="check-mark" class="text-green-500 text-2xl absolute -right-6 opacity-0 scale-0 transition-all duration-500">✓</span>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= QUIZ VIEW ================= -->
+        <div id="quiz-container" class="hidden w-full flex-col bg-white min-h-[500px]">
+            <!-- Header -->
+            <div class="bg-indigo-700 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <h2 class="text-xl font-bold flex items-center gap-2" id="quiz-header-title">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    Quiz Mode
+                </h2>
+                <div class="flex items-center gap-4 md:gap-8 text-sm md:text-base">
+                    <div class="font-medium text-indigo-100">Player: <span id="quiz-player-name" class="text-white font-bold tracking-wide"></span></div>
+                    <div class="font-medium text-indigo-100 bg-indigo-800 px-4 py-1.5 rounded-full shadow-inner border border-indigo-600">Score: <span id="quiz-score-display" class="text-white font-bold">0 / 0</span></div>
+                    <button id="exit-quiz-btn" class="bg-indigo-500 hover:bg-indigo-400 px-4 py-1.5 rounded font-semibold text-white transition shadow">Exit Quiz</button>
+                </div>
+            </div>
+
+            <!-- Quiz Body -->
+            <div class="flex-grow flex flex-col items-center justify-center p-8 relative">
+                
+                <h3 class="text-lg text-gray-600 mb-8 font-medium text-center">Factorize the following quadratic expression:</h3>
+                
+                <!-- Random Equation -->
+                <div class="text-4xl mb-12 font-bold tracking-wide text-gray-900" id="quiz-equation-display">
+                    <!-- MathJax Equation -->
+                </div>
+
+                <!-- Input Area -->
+                <div class="flex flex-wrap justify-center items-center gap-2 text-2xl font-medium text-gray-800 bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 shadow-inner">
+                    <span class="text-gray-400">(</span>
+                    <div id="q-p-container" class="relative">
+                        <select id="q-p" class="w-20 h-14 text-center text-xl font-bold border-2 border-gray-300 rounded focus:border-indigo-500 focus:ring focus:ring-indigo-200 transition outline-none cursor-pointer bg-white pl-3 pr-6 appearance-none" style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'gray\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 0.25rem center; background-size: 1rem;"></select>
+                    </div>
+                    <span class="mx-1">\(x\)</span>
+                    <div class="relative">
+                        <select id="q-q" class="w-24 h-14 text-center text-xl font-bold border-2 border-gray-300 rounded focus:border-indigo-500 focus:ring focus:ring-indigo-200 transition outline-none cursor-pointer bg-white pl-3 pr-6 appearance-none" style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'gray\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 0.25rem center; background-size: 1rem;"></select>
+                    </div>
+                    <span class="text-gray-400">)</span>
+                    
+                    <span class="mx-2 md:mx-4 hidden md:block"></span>
+                    
+                    <span class="text-gray-400">(</span>
+                    <div id="q-r-container" class="relative">
+                        <select id="q-r" class="w-20 h-14 text-center text-xl font-bold border-2 border-gray-300 rounded focus:border-indigo-500 focus:ring focus:ring-indigo-200 transition outline-none cursor-pointer bg-white pl-3 pr-6 appearance-none" style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'gray\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 0.25rem center; background-size: 1rem;"></select>
+                    </div>
+                    <span class="mx-1">\(x\)</span>
+                    <div class="relative">
+                        <select id="q-s" class="w-24 h-14 text-center text-xl font-bold border-2 border-gray-300 rounded focus:border-indigo-500 focus:ring focus:ring-indigo-200 transition outline-none cursor-pointer bg-white pl-3 pr-6 appearance-none" style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'gray\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 0.25rem center; background-size: 1rem;"></select>
+                    </div>
+                    <span class="text-gray-400">)</span>
+                </div>
+                
+                <p class="text-sm text-gray-500 mt-4 text-center">Tip: Select the correct factors from the dropdown menus.</p>
+
+                <!-- Feedback & Actions -->
+                <div class="mt-10 h-24 flex flex-col items-center justify-center w-full">
+                    <div id="quiz-feedback" class="text-xl font-bold mb-4 opacity-0 transition-opacity"></div>
+                    
+                    <button id="quiz-submit-btn" class="px-8 py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 transition transform hover:scale-105 active:scale-95">Check Answer</button>
+                    
+                    <button id="quiz-next-question-btn" class="hidden px-8 py-3 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition transform hover:scale-105 active:scale-95">Next Question ➔</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- GLOBAL LOGIC ---
+            
+            function safeMathJaxTypeset() {
+                if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+                    window.MathJax.typesetPromise().catch(err => console.warn("MathJax async warning handled:", err));
+                }
+            }
+
+            function formatTerm(val, variable, isLeading) {
+                if (val === 0) return "";
+                let num = Math.abs(val);
+                let sign = val < 0 ? "-" : "+";
+                let numStr = (num === 1 && variable !== "") ? "" : num;
+                
+                if (isLeading) {
+                    return val < 0 ? `-${numStr}${variable}` : `${numStr}${variable}`;
+                } else {
+                    return `${sign} ${numStr}${variable}`;
+                }
+            }
+
+
+            // ================= TUTORIAL MODE LOGIC =================
+
+            let currentStep = 0;
+            const maxSteps = 5;
+
+            // Timer management
+            let activeTimeouts = [];
+            function runWithDelay(callback, delay) {
+                activeTimeouts.push(setTimeout(callback, delay));
+            }
+            function clearAllTimeouts() {
+                activeTimeouts.forEach(clearTimeout);
+                activeTimeouts = [];
+            }
+
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const newExampleBtn = document.getElementById('new-btn');
+            const stepIndicator = document.getElementById('step-indicator');
+
+            // Elements to animate/highlight
+            const hlATerm = document.getElementById('hl-a-term');
+            const hlBTerm = document.getElementById('hl-b-term');
+            const hlCTerm = document.getElementById('hl-c-term');
+            
+            const visATerm = document.getElementById('vis-a-term');
+            const visBTerm = document.getElementById('vis-b-term');
+            const visCTerm = document.getElementById('vis-c-term');
+
+            const factorA1 = document.getElementById('factor-a1');
+            const factorA2 = document.getElementById('factor-a2');
+            const factorC1 = document.getElementById('factor-c1');
+            const factorC2 = document.getElementById('factor-c2');
+
+            const line1 = document.getElementById('line-1');
+            const line2 = document.getElementById('line-2');
+            
+            const calc1 = document.getElementById('calc-1');
+            const calc2 = document.getElementById('calc-2');
+            const calcSumLine = document.getElementById('calc-sum-line');
+            const calcSumContainer = document.getElementById('calc-sum-container');
+            const checkMark = document.getElementById('check-mark');
+            
+            const groupTop = document.getElementById('group-top');
+            const groupBottom = document.getElementById('group-bottom');
+
+            // Current mathematical state
+            let problem = { p: 2, r: 1, q: 1, s: 3, a: 2, b: 7, c: 3 };
+
+            function generateNewProblem() {
+                const pChoices = [1, 2, 3];
+                const rChoices = [1, 2, 3];
+                const constChoices = [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5];
+                
+                let p, r, q, s, a, b, c;
+                do {
+                    p = pChoices[Math.floor(Math.random() * pChoices.length)];
+                    r = rChoices[Math.floor(Math.random() * rChoices.length)];
+                    q = constChoices[Math.floor(Math.random() * constChoices.length)];
+                    s = constChoices[Math.floor(Math.random() * constChoices.length)];
+                    
+                    a = p * r;
+                    c = q * s;
+                    b = (p * s) + (r * q);
+                    
+                } while (b === 0 || a === 0); 
+                
+                problem = { p, r, q, s, a, b, c };
+                updateDOMWithProblem();
+            }
+
+            function updateDOMWithProblem() {
+                const { p, r, q, s, a, b, c } = problem;
+                
+                const termA = formatTerm(a, 'x^2', true);
+                const termB = formatTerm(b, 'x', false);
+                const termC = formatTerm(c, '', false);
+                const fullEq = `${termA} ${termB} ${termC}`;
+                
+                const strPx = formatTerm(p, 'x', true);
+                const strRx = formatTerm(r, 'x', true);
+                const strQ = formatTerm(q, '', true);
+                const strS = formatTerm(s, '', true);
+
+                const strSMult = s < 0 ? `(${s})` : s;
+                const strQMult = q < 0 ? `(${q})` : q;
+                
+                // Construct standard HTML with tailwind colors wrapping raw MathJax blocks
+                const cross1Latex = `<span class="text-blue-600">\\(${strPx}\\)</span> <span class="text-gray-700">\\(\\times\\)</span> <span class="text-green-600">\\(${strSMult}\\)</span> <span class="text-gray-700">\\(=\\)</span> <span class="text-purple-600 font-bold">\\(${formatTerm(p * s, 'x', true)}\\)</span>`;
+                const cross2Latex = `<span class="text-blue-600">\\(${strRx}\\)</span> <span class="text-gray-700">\\(\\times\\)</span> <span class="text-green-600">\\(${strQMult}\\)</span> <span class="text-gray-700">\\(=\\)</span> <span class="text-purple-600 font-bold">\\(${formatTerm(r * q, 'x', true)}\\)</span>`;
+                const sumLatex = `<span class="text-purple-600">\\(${formatTerm(p * s, 'x', true)}\\)</span> <span class="text-purple-600">\\(${formatTerm(r * q, 'x', false)}\\)</span> <span class="text-gray-700">\\(=\\)</span> <span class="text-red-500 font-bold">\\(${formatTerm(b, 'x', true)}\\)</span>`;
+
+                // Update text elements safely
+                document.getElementById('step0-eq').innerHTML = `\\(${fullEq}\\)`;
+                document.getElementById('hl-a-term').innerHTML = `\\(${termA}\\)`;
+                document.getElementById('step1-desc').innerHTML = `We need to find factors of ${a}.`;
+                document.getElementById('step1-placements').innerHTML = `So, we place \\(${strPx}\\) and \\(${strRx}\\) on the left side of our cross diagram.`;
+                
+                document.getElementById('hl-c-term').innerHTML = `\\(${termC}\\)`;
+                document.getElementById('step2-desc').innerHTML = `We need factors of ${c}.`;
+                document.getElementById('step2-placements').innerHTML = `Let's try placing \\(${strQ}\\) and \\(${strS}\\) on the right side.`;
+                
+                document.getElementById('step3-li1').innerHTML = cross1Latex;
+                document.getElementById('step3-li2').innerHTML = cross2Latex;
+                
+                document.getElementById('step4-calc').innerHTML = sumLatex;
+                document.getElementById('hl-b-term').innerHTML = `\\(${formatTerm(b, 'x', true)}\\)`;
+                
+                document.getElementById('step5-row1').innerHTML = `\\((${strPx} ${formatTerm(q, '', false)})\\)`;
+                document.getElementById('step5-row2').innerHTML = `\\((${strRx} ${formatTerm(s, '', false)})\\)`;
+                document.getElementById('step5-final').innerHTML = `\\(${fullEq} = (${strPx} ${formatTerm(q, '', false)})(${strRx} ${formatTerm(s, '', false)})\\)`;
+
+                // Visualizer
+                visATerm.innerHTML = `\\(${termA}\\)`;
+                visBTerm.innerHTML = `\\(${termB}\\)`;
+                visCTerm.innerHTML = `\\(${termC}\\)`;
+                
+                factorA1.innerHTML = `\\(${strPx}\\)`;
+                factorA2.innerHTML = `\\(${strRx}\\)`;
+                factorC1.innerHTML = `\\(${strQ}\\)`;
+                factorC2.innerHTML = `\\(${strS}\\)`;
+                
+                calc1.innerHTML = cross1Latex;
+                calc2.innerHTML = cross2Latex;
+                document.getElementById('calc-sum-formula').innerHTML = sumLatex;
+
+                // Fire async MathJax
+                safeMathJaxTypeset();
+
+                // Reset state
+                currentStep = 0;
+                updateUI();
+            }
+
+            function updateUI() {
+                prevBtn.disabled = currentStep === 0;
+                
+                if (currentStep === maxSteps) {
+                    nextBtn.classList.add('hidden');
+                    resetBtn.classList.remove('hidden');
+                } else {
+                    nextBtn.classList.remove('hidden');
+                    resetBtn.classList.add('hidden');
+                }
+
+                stepIndicator.textContent = `Step ${currentStep} / ${maxSteps}`;
+
+                document.querySelectorAll('.step-content').forEach((el, index) => {
+                    if (index === currentStep) {
+                        el.classList.add('active');
+                    } else {
+                        el.classList.remove('active');
+                    }
+                });
+
+                executeStepAnimation(currentStep);
+            }
+
+            function executeStepAnimation(step) {
+                resetVisuals();
+
+                switch (step) {
+                    case 0:
+                        break;
+                    case 1:
+                        if(hlATerm) hlATerm.classList.add('active');
+                        visATerm.classList.replace('text-gray-900', 'text-blue-600');
+                        
+                        runWithDelay(() => {
+                            factorA1.classList.remove('opacity-0');
+                            factorA1.classList.add('fade-in');
+                        }, 100);
+                        runWithDelay(() => {
+                            factorA2.classList.remove('opacity-0');
+                            factorA2.classList.add('fade-in');
+                        }, 400);
+                        break;
+                    case 2:
+                        visATerm.classList.replace('text-gray-900', 'text-blue-600');
+                        factorA1.classList.remove('opacity-0');
+                        factorA2.classList.remove('opacity-0');
+                        
+                        if(hlCTerm) hlCTerm.classList.add('active');
+                        visCTerm.classList.replace('text-gray-900', 'text-green-600');
+
+                        runWithDelay(() => {
+                            factorC1.classList.remove('opacity-0');
+                            factorC1.classList.add('fade-in');
+                        }, 100);
+                        runWithDelay(() => {
+                            factorC2.classList.remove('opacity-0');
+                            factorC2.classList.add('fade-in');
+                        }, 400);
+                        break;
+                    case 3:
+                        visATerm.classList.replace('text-gray-900', 'text-blue-600');
+                        visCTerm.classList.replace('text-gray-900', 'text-green-600');
+                        factorA1.classList.remove('opacity-0');
+                        factorA2.classList.remove('opacity-0');
+                        factorC1.classList.remove('opacity-0');
+                        factorC2.classList.remove('opacity-0');
+
+                        line1.classList.remove('opacity-0');
+                        runWithDelay(() => line1.classList.add('draw'), 50);
+                        
+                        runWithDelay(() => {
+                            calc1.classList.remove('opacity-0');
+                        }, 600);
+
+                        runWithDelay(() => {
+                            line2.classList.remove('opacity-0');
+                            line2.classList.add('draw');
+                        }, 1200);
+
+                        runWithDelay(() => {
+                            calc2.classList.remove('opacity-0');
+                        }, 1800);
+                        break;
+                    case 4:
+                        visATerm.classList.replace('text-gray-900', 'text-blue-600');
+                        visCTerm.classList.replace('text-gray-900', 'text-green-600');
+                        factorA1.classList.remove('opacity-0');
+                        factorA2.classList.remove('opacity-0');
+                        factorC1.classList.remove('opacity-0');
+                        factorC2.classList.remove('opacity-0');
+                        line1.classList.remove('opacity-0'); line1.classList.add('draw');
+                        line2.classList.remove('opacity-0'); line2.classList.add('draw');
+                        calc1.classList.remove('opacity-0');
+                        calc2.classList.remove('opacity-0');
+
+                        if(hlBTerm) hlBTerm.classList.add('active');
+                        visBTerm.classList.replace('text-gray-900', 'text-red-500');
+
+                        runWithDelay(() => {
+                            calcSumLine.classList.remove('opacity-0');
+                            calcSumContainer.classList.remove('opacity-0');
+                        }, 200);
+
+                        runWithDelay(() => {
+                            checkMark.classList.remove('opacity-0', 'scale-0');
+                            checkMark.classList.add('scale-100');
+                        }, 800);
+                        break;
+                    case 5:
+                        factorA1.classList.remove('opacity-0');
+                        factorA2.classList.remove('opacity-0');
+                        factorC1.classList.remove('opacity-0');
+                        factorC2.classList.remove('opacity-0');
+                        
+                        line1.classList.add('opacity-0');
+                        line2.classList.add('opacity-0');
+                        calc1.classList.add('opacity-0');
+                        calc2.classList.add('opacity-0');
+                        calcSumLine.classList.add('opacity-0');
+                        calcSumContainer.classList.add('opacity-0');
+
+                        runWithDelay(() => {
+                            groupTop.classList.remove('opacity-0');
+                        }, 200);
+                        runWithDelay(() => {
+                            groupBottom.classList.remove('opacity-0');
+                        }, 600);
+                        break;
+                }
+            }
+
+            function resetVisuals() {
+                clearAllTimeouts();
+
+                [hlATerm, hlBTerm, hlCTerm].forEach(el => { if(el) el.classList.remove('active'); });
+                
+                visATerm.classList.remove('text-blue-600');
+                visATerm.classList.add('text-gray-900');
+                visBTerm.classList.remove('text-red-500');
+                visBTerm.classList.add('text-gray-900');
+                visCTerm.classList.remove('text-green-600');
+                visCTerm.classList.add('text-gray-900');
+
+                [factorA1, factorA2, factorC1, factorC2].forEach(el => {
+                    el.classList.add('opacity-0');
+                    el.classList.remove('fade-in');
+                });
+
+                line1.classList.add('opacity-0');
+                line1.classList.remove('draw');
+                line2.classList.add('opacity-0');
+                line2.classList.remove('draw');
+
+                calc1.classList.add('opacity-0');
+                calc2.classList.add('opacity-0');
+                calcSumLine.classList.add('opacity-0');
+                calcSumContainer.classList.add('opacity-0');
+                checkMark.classList.add('opacity-0', 'scale-0');
+                checkMark.classList.remove('scale-100');
+
+                groupTop.classList.add('opacity-0');
+                groupBottom.classList.add('opacity-0');
+            }
+
+            nextBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (currentStep < maxSteps) {
+                    currentStep++;
+                    updateUI();
+                }
+            });
+
+            prevBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (currentStep > 0) {
+                    currentStep--;
+                    updateUI();
+                }
+            });
+
+            resetBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentStep = 0;
+                updateUI();
+            });
+            
+            newExampleBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                generateNewProblem();
+            });
+
+            // Initialize on load
+            updateDOMWithProblem();
+
+
+            // ================= QUIZ MODE LOGIC =================
+
+        // 1. ADD YOUR DEPLOYED GOOGLE APPS SCRIPT URL HERE
+        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyh6icUe33jZWegLJP1d8lZ9WKkPSHj2Q11947Vlf8vh1h2PvnCKLZnxxtNpckLFuA/exec';
+
+        // 2. ADD THIS SYNC FUNCTION
+        function syncScoreToSheet() {
+            // Prevent attempting to send if URL hasn't been replaced yet
+            if (!GAS_WEB_APP_URL || GAS_WEB_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') return;
+            
+            const payload = {
+                name: quizState.name,
+                mode: 'Quiz Mode ' + quizState.mode,
+                correct: quizState.correct,
+                attempted: quizState.attempted
+            };
+
+            // Send POST request using 'text/plain' to avoid strict CORS preflight failures
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload),
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8',
+                }
+            }).catch(err => console.error("Error syncing to Google Sheets:", err));
+        }
+
+        let quizState = {
+            name: '',
+            attempted: 0,
+            correct: 0,
+            mode: 2,
+            currentProblem: { p: 0, q: 0, r: 0, s: 0, a: 0, b: 0, c: 0 }
+        };
+        let pendingQuizMode = 2;
+
+        function initDropdowns() {
+            // Dropdowns for standard x coefficients (p and r)
+            const coeffIds = ['q-p', 'q-r'];
+            coeffIds.forEach(id => {
+                const select = document.getElementById(id);
+                select.innerHTML = '<option value="" disabled selected>?</option>';
+                for (let i = -10; i <= 10; i++) {
+                    if (i === 0) continue; // Skip zero
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = i;
+                    select.appendChild(opt);
+                }
+            });
+
+            // Dropdowns for constant terms featuring explicit operation signs (q and s)
+            const constIds = ['q-q', 'q-s'];
+            constIds.forEach(id => {
+                const select = document.getElementById(id);
+                select.innerHTML = '<option value="" disabled selected>?</option>';
+                for (let i = -10; i <= 10; i++) {
+                    if (i === 0) continue; // Skip zero
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    // Prefix the constant with its respective mathematical operation sign
+                    const sign = i > 0 ? '+ ' : '- ';
+                    opt.textContent = `${sign}${Math.abs(i)}`;
+                    select.appendChild(opt);
+                }
+            });
+        }
+        initDropdowns();
+
+        const enterQuiz1Btn = document.getElementById('enter-quiz-1-btn');
+        const enterQuiz2Btn = document.getElementById('enter-quiz-2-btn');
+            const nameModal = document.getElementById('name-modal');
+            const startQuizBtn = document.getElementById('start-quiz-btn');
+            const cancelQuizBtn = document.getElementById('cancel-quiz-btn');
+            const studentNameInput = document.getElementById('student-name-input');
+            const nameError = document.getElementById('name-error');
+            
+            const tutorialContainer = document.getElementById('tutorial-container');
+            const quizContainer = document.getElementById('quiz-container');
+            const exitQuizBtn = document.getElementById('exit-quiz-btn');
+
+            enterQuiz1Btn.addEventListener('click', () => {
+                pendingQuizMode = 1;
+                nameModal.classList.remove('hidden');
+                setTimeout(() => studentNameInput.focus(), 100);
+            });
+
+            enterQuiz2Btn.addEventListener('click', () => {
+                pendingQuizMode = 2;
+                nameModal.classList.remove('hidden');
+                setTimeout(() => studentNameInput.focus(), 100);
+            });
+
+            cancelQuizBtn.addEventListener('click', () => {
+                nameModal.classList.add('hidden');
+                nameError.classList.add('opacity-0');
+                studentNameInput.classList.remove('border-red-500');
+            });
+
+            startQuizBtn.addEventListener('click', () => {
+                const name = studentNameInput.value.trim();
+                
+                if (!name) {
+                    studentNameInput.classList.add('border-red-500');
+                    nameError.classList.remove('opacity-0');
+                    return;
+                }
+                
+                // Clean up and set state
+                studentNameInput.classList.remove('border-red-500');
+                nameError.classList.add('opacity-0');
+                
+                quizState.name = name;
+                quizState.attempted = 0;
+                quizState.correct = 0;
+                quizState.mode = pendingQuizMode;
+                
+                // UI Switch
+                nameModal.classList.add('hidden');
+                tutorialContainer.classList.add('hidden');
+                quizContainer.classList.remove('hidden');
+                quizContainer.classList.add('flex'); // Because it uses flex-col
+                
+                if (quizState.mode === 1) {
+                    document.getElementById('q-p-container').classList.add('hidden');
+                    document.getElementById('q-r-container').classList.add('hidden');
+                } else {
+                    document.getElementById('q-p-container').classList.remove('hidden');
+                    document.getElementById('q-r-container').classList.remove('hidden');
+                }
+
+                document.getElementById('quiz-header-title').innerHTML = `
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    Quiz Mode ${quizState.mode}
+                `;
+                
+                document.getElementById('quiz-player-name').textContent = quizState.name;
+                updateScoreDisplay();
+                generateQuizQuestion();
+            });
+
+            exitQuizBtn.addEventListener('click', () => {
+                quizContainer.classList.add('hidden');
+                quizContainer.classList.remove('flex');
+                tutorialContainer.classList.remove('hidden');
+            });
+
+            function generateQuizQuestion() {
+                const pChoices = [1, 2, 3];
+                const rChoices = [1, 2, 3];
+                const constChoices = [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5];
+                
+                let p, r, q, s, a, b, c;
+            do {
+                if (quizState.mode === 1) {
+                    p = 1;
+                    r = 1;
+                } else {
+                    p = pChoices[Math.floor(Math.random() * pChoices.length)];
+                    r = rChoices[Math.floor(Math.random() * rChoices.length)];
+                }
+                q = constChoices[Math.floor(Math.random() * constChoices.length)];
+                s = constChoices[Math.floor(Math.random() * constChoices.length)];
+                
+                a = p * r;
+                c = q * s;
+                b = (p * s) + (r * q);
+                
+            } while (b === 0 || a === 0);
+            
+            quizState.currentProblem = { p, r, q, s, a, b, c };
+            
+            const termA = formatTerm(a, 'x^2', true);
+                const termB = formatTerm(b, 'x', false);
+                const termC = formatTerm(c, '', false);
+                const fullEq = `${termA} ${termB} ${termC}`;
+                
+                document.getElementById('quiz-equation-display').innerHTML = `\\(${fullEq}\\)`;
+            
+            // Reset UI
+            ['q-p', 'q-q', 'q-r', 'q-s'].forEach(id => {
+                const input = document.getElementById(id);
+                input.value = '';
+                input.classList.remove('border-red-500', 'border-green-500');
+            });
+            
+            const feedback = document.getElementById('quiz-feedback');
+                feedback.classList.add('opacity-0');
+                feedback.textContent = '';
+                feedback.className = 'text-xl font-bold mb-4 opacity-0 transition-opacity';
+                
+                document.getElementById('quiz-submit-btn').classList.remove('hidden');
+                document.getElementById('quiz-next-question-btn').classList.add('hidden');
+
+                safeMathJaxTypeset();
+            }
+
+            document.getElementById('quiz-submit-btn').addEventListener('click', () => {
+            // Parse user inputs
+            const p = quizState.mode === 1 ? 1 : parseInt(document.getElementById('q-p').value);
+            const q = parseInt(document.getElementById('q-q').value);
+            const r = quizState.mode === 1 ? 1 : parseInt(document.getElementById('q-r').value);
+            const s = parseInt(document.getElementById('q-s').value);
+
+            // Validate that all dropdowns have a selection
+            if (isNaN(p) || isNaN(q) || isNaN(r) || isNaN(s)) {
+                const feedback = document.getElementById('quiz-feedback');
+                feedback.classList.remove('opacity-0');
+                feedback.textContent = '⚠️ Please select a value for all fields.';
+                feedback.className = 'text-xl font-bold mb-4 transition-opacity text-orange-500';
+                return;
+            }
+
+            const { a: expectedA, b: expectedB, c: expectedC, p: genP, q: genQ, r: genR, s: genS } = quizState.currentProblem;
+
+            // Expand user inputs: (px + q)(rx + s) = (pr)x^2 + (ps + rq)x + (qs)
+            const userA = p * r;
+            const userC = q * s;
+            const userB = (p * s) + (r * q);
+
+            quizState.attempted++;
+            const feedback = document.getElementById('quiz-feedback');
+            feedback.classList.remove('opacity-0');
+
+            // Check if user expansion matches expected problem
+            if (userA === expectedA && userB === expectedB && userC === expectedC) {
+                quizState.correct++;
+                feedback.textContent = '🎉 Correct! Next question in 3 seconds...';
+                feedback.className = 'text-xl font-bold mb-4 transition-opacity text-green-600';
+                
+                ['q-p', 'q-q', 'q-r', 'q-s'].forEach(id => {
+                    document.getElementById(id).classList.add('border-green-500');
+                    document.getElementById(id).classList.remove('border-gray-300');
+                });
+                
+                document.getElementById('quiz-submit-btn').classList.add('hidden');
+                document.getElementById('quiz-next-question-btn').classList.add('hidden');
+                
+                // Auto-advance after 3 seconds
+                setTimeout(() => {
+                    if (!document.getElementById('quiz-container').classList.contains('hidden')) {
+                        generateQuizQuestion();
+                    }
+                }, 3000);
+
+            } else {
+                // Build the correct answer string using the format generator
+                const strPx = formatTerm(genP, 'x', true);
+                const strQ = formatTerm(genQ, '', false);
+                const strRx = formatTerm(genR, 'x', true);
+                const strS = formatTerm(genS, '', false);
+                const correctStr = `\\((${strPx} ${strQ})(${strRx} ${strS})\\)`;
+                
+                feedback.innerHTML = `❌ Incorrect. Correct answer: <span class="math-lg">${correctStr}</span>`;
+                feedback.className = 'text-xl font-bold mb-4 transition-opacity text-red-500';
+                safeMathJaxTypeset();
+                
+                ['q-p', 'q-q', 'q-r', 'q-s'].forEach(id => {
+                    document.getElementById(id).classList.add('border-red-500');
+                    document.getElementById(id).classList.remove('border-gray-300');
+                });
+                
+                document.getElementById('quiz-submit-btn').classList.add('hidden');
+                document.getElementById('quiz-next-question-btn').classList.remove('hidden');
+            }
+            
+            updateScoreDisplay();
+            
+            // 3. CALL SYNC FUNCTION EVERY TIME AN ANSWER IS CHECKED
+            syncScoreToSheet(); 
+        });
+
+        document.getElementById('quiz-next-question-btn').addEventListener('click', () => {
+            generateQuizQuestion();
+        });
+
+        function updateScoreDisplay() {
+            document.getElementById('quiz-score-display').textContent = `${quizState.correct} / ${quizState.attempted}`;
+        }
+
+        // Allow "Enter" key on name modal
+        studentNameInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                startQuizBtn.click();
+            }
+        });
+    });
+</script>
+</body>
+</html>
