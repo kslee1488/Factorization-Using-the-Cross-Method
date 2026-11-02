@@ -827,7 +827,19 @@
                 const rChoices = [1, 2, 3];
                 const constChoices = [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5];
                 
-                let p, r, q, s, a, b, c;
+                // Helper function to find greatest common divisor
+                function getGcd(x, y) {
+                    x = Math.abs(x);
+                    y = Math.abs(y);
+                    while(y) {
+                        let t = y;
+                        y = x % y;
+                        x = t;
+                    }
+                    return x;
+                }
+                
+                let p, r, q, s, a, b, c, isValidProblem;
             do {
                 if (quizState.mode === 1) {
                     p = 1;
@@ -843,7 +855,21 @@
                 c = q * s;
                 b = (p * s) + (r * q);
                 
-            } while (b === 0 || a === 0);
+                isValidProblem = true;
+                
+                // Must not have a zero 'b' or zero 'a' term
+                if (b === 0 || a === 0) {
+                    isValidProblem = false;
+                }
+                
+                // In Quiz Mode 2, coefficients a, b, c must be relatively prime
+                if (quizState.mode === 2 && isValidProblem) {
+                    if (getGcd(getGcd(a, b), c) !== 1) {
+                        isValidProblem = false;
+                    }
+                }
+                
+            } while (!isValidProblem);
             
             quizState.currentProblem = { p, r, q, s, a, b, c };
             
